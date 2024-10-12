@@ -12,3 +12,6 @@
 
 # Dependency directories (vendor/)
 vendor/
+
+# Environment variables file
+.env
