@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,7 @@ import (
 
 // Reusable AWS S3 client
 var s3Client *s3.S3
+var dynamoDBClient *dynamodb.DynamoDB
 
 // Init function for initializing AWS session and S3 client
 func init() {
@@ -53,6 +55,7 @@ func init() {
 
 	// Create S3 client once and reuse it
 	s3Client = s3.New(sess)
+	dynamoDBClient = dynamodb.New(sess)
 }
 
 func main() {
@@ -61,7 +64,7 @@ func main() {
 	// Add gzip compression to reduce response sizes
 	r.Use(gzip.Gzip(gzip.BestSpeed))
 
-	uploadserver.InitializeRoutes(r, s3Client)
+	uploadserver.InitializeRoutes(r, s3Client, dynamoDBClient)
 	// Start the Gin server
 	fmt.Println("Server running on port 8080")
 	if err := r.Run(":8080"); err != nil {
