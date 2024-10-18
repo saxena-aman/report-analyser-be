@@ -3,6 +3,7 @@ package uploadserver
 import (
 	"net/http"
 
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
 )
@@ -43,4 +44,45 @@ func listS3Objects(c *gin.Context, s3Client *s3.S3) {
 	JSONResponse(c, http.StatusOK, "Lookup successfully", map[string]interface{}{
 		"items": objects,
 	})
+}
+
+// UploadReportHandler handles the file upload and user info
+func UploadReportHandler(c *gin.Context, s3Client *s3.S3, dynamoDBClient *dynamodb.DynamoDB) {
+	// Parse form data and file
+	err := c.Request.ParseMultipartForm(10 << 20) // 10MB max file size
+	if err != nil {
+		InternalServerError(c, "Unable to parse form data")
+		return
+	}
+
+	// Get user details from the form
+	name := c.PostForm("name")
+	email := c.PostForm("email")
+	gender := c.PostForm("gender")
+	age := c.PostForm("age")
+
+	// Get the file from the request
+	header, err := c.FormFile("reportFile")
+	if err != nil {
+		InternalServerError(c, "Error retrieving the file")
+		return
+	}
+
+	// Open the file for reading
+	file, err := header.Open()
+	if err != nil {
+		InternalServerError(c, "Unable to open file")
+		return
+	}
+	defer file.Close()
+
+	// Call DAO function to handle the business logic
+	err = HandleReportUpload(s3Client, dynamoDBClient, name, email, gender, age, file, header)
+	if err != nil {
+		InternalServerError(c, "Failed to upload report")
+		return
+	}
+
+	// On success, send a response back
+	JSONResponse(c, http.StatusOK, "Report uploaded successfully", nil)
 }

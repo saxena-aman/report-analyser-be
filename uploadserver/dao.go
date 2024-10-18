@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/google/uuid"
 )
 
 // UploadFileToS3 uploads a file to the specified S3 bucket and returns the file's URL
@@ -64,4 +66,68 @@ func ListS3Objects(s3Client *s3.S3) ([]S3Object, error) {
 	}
 
 	return objects, nil
+}
+
+func HandleReportUpload(s3Client *s3.S3, dynamoDBClient *dynamodb.DynamoDB, name, email, gender, age string, file multipart.File, header *multipart.FileHeader) error {
+	// 1. Upload the file to S3
+	fileURL, err := UploadFileToS3(s3Client, file, header)
+	if err != nil {
+		return err
+	}
+
+	// 2. Create a new UUID for the user
+	userId := uuid.New().String()
+
+	// 3. Prepare the DynamoDB item to insert
+	item := map[string]*dynamodb.AttributeValue{
+		"UserId": {
+			S: aws.String(userId),
+		},
+		"ReportIndex": {
+			S: aws.String(userId), // You can generate this dynamically based on business logic
+		},
+		"Name": {
+			S: aws.String(name),
+		},
+		"Email": {
+			S: aws.String(email),
+		},
+		"Gender": {
+			S: aws.String(gender),
+		},
+		"Age": {
+			N: aws.String(age),
+		},
+		"Reports": {
+			L: []*dynamodb.AttributeValue{
+				{
+					M: map[string]*dynamodb.AttributeValue{
+						"FileUrl": {
+							S: aws.String(fileURL),
+						},
+						"FileName": {
+							S: aws.String(header.Filename),
+						},
+						"UploadedAt": {
+							S: aws.String(time.Now().Format(time.RFC3339)),
+						},
+					},
+				},
+			},
+		},
+		"CreatedAt": {
+			S: aws.String(time.Now().Format(time.RFC3339)),
+		},
+	}
+
+	// 4. Insert the item into DynamoDB
+	_, err = dynamoDBClient.PutItem(&dynamodb.PutItemInput{
+		TableName: aws.String("report-analyser-users"), // Replace with your table name
+		Item:      item,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
